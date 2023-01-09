@@ -1,0 +1,143 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: mysql-template-to-expose-routes
+  annotations:
+    description: "MySQL server showing volume mount using configmap to override mysql default config"
+    tags: "database,mysql"
+objects:
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: ${APP_NAME}
+    labels:
+      app: ${APP_NAME}
+  type: Opaque
+  stringData:
+    mysql-database: ${MYSQL_DATABASE}
+    mysql-password: ${MYSQL_PASSWORD}
+    mysql-root-password: ${MYSQL_ROOT_PASSWORD}
+    mysql-user: ${MYSQL_USER}
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: ${APP_NAME}
+  data:
+    my.cnf: |
+      [mysqld]
+      # bind-address   = mysql-mysqldb.apps.hubztp.telco.ocp.run
+      bind-address = 0.0.0.0
+      symbolic-links = 0
+      skip_name_resolve = OFF
+      #skip-networking = off
+      !includedir /etc/my.cnf.d
+    hosts.allow: |
+      mysqld: ALL: allow
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"mysql:8.0-el8","namespace":"openshift"},"fieldPath":"spec.template.spec.containers[?(@.name==\"mysql\")].image"}]'
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: null
+    labels:
+      app: ${APP_NAME}
+      app.kubernetes.io/component: ${APP_NAME}
+      app.kubernetes.io/instance: ${APP_NAME}
+      database: ${APP_NAME}
+    name: ${APP_NAME}
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        database: ${APP_NAME}
+        deployment: ${APP_NAME}
+    strategy: {}
+    template:
+      metadata:
+        annotations:
+          openshift.io/generated-by: OpenShiftNewApp
+        creationTimestamp: null
+        labels:
+          database: ${APP_NAME}
+          deployment: ${APP_NAME}
+      spec:
+        containers:
+        - env:
+          - name: MYSQL_HOME
+            value: "/etc/mysql"
+          - name: MYSQL_DATABASE
+            valueFrom:
+              secretKeyRef:
+                key: mysql-database
+                name: ${APP_NAME}
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: mysql-password
+                name: ${APP_NAME}
+          - name: MYSQL_ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: mysql-root-password
+                name: ${APP_NAME}
+          - name: MYSQL_USER
+            valueFrom:
+              secretKeyRef:
+                key: mysql-user
+                name: ${APP_NAME}
+          image: '${IMAGE}'
+          name: mysql
+          ports:
+          - containerPort: 3306
+            protocol: TCP
+          volumeMounts:
+          - mountPath: "/etc/my.cnf"
+            name: mysqlconfig
+            subPath: my.cnf
+          - mountPath: "/etc/hosts.allow"
+            name: mysqlconfig
+            subPath: hosts.allow
+          resources: {}
+        volumes:
+          - name: mysqlconfig
+            configMap:
+              name: ${APP_NAME} 
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: null
+    labels:
+      app: ${APP_NAME}
+      app.kubernetes.io/component: ${APP_NAME}
+      app.kubernetes.io/instance: ${APP_NAME}
+      database: ${APP_NAME}
+    name: ${APP_NAME}
+  spec:
+    ports:
+    - name: 3306-tcp
+      port: 3306
+      protocol: TCP
+      targetPort: 3306
+    selector:
+      database: ${APP_NAME}
+      deployment: ${APP_NAME}
+  status:
+    loadBalancer: {}
+parameters:
+- name: APP_NAME
+  value: mysql
+- name: MYSQL_USER
+  value: user
+- name: MYSQL_PASSWORD
+  value: password
+- name: MYSQL_ROOT_PASSWORD
+  value: supersecret
+- name: MYSQL_DATABASE
+  value: exampledb
+- name: IMAGE
+  value: "mysql"
+
