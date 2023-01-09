@@ -1,0 +1,20 @@
+ARG VERSION=1
+FROM registry.redhat.io/ubi7/python-38
+
+RUN echo $VERSION
+
+MAINTAINER "Balkrishna Pandey"
+LABEL  description="My custom app" \
+       organization="goglides"
+
+WORKDIR /app
+
+COPY . .
+
+RUN pip3 install -r requirements.txt
+
+EXPOSE 8080
+
+ENTRYPOINT ["python3"]
+
+CMD ["app.py"]
