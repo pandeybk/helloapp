@@ -1,4 +1,4 @@
-FROM registry.redhat.io/ubi8/python-38:3.8
+FROM registry.redhat.io/ubi7/python-38
 WORKDIR /app
 COPY requirements.txt requirements.txt
 COPY . .
